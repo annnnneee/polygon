@@ -1,0 +1,37 @@
+#include <iostream>
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+int maxSum(vector<int>& slices, int start, int end, int n) {//вспомогательная функция для вычисления max суммы пицц
+    int m = end - start + 1;//количество кусков пиццы в диапазоне от start до end
+    vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));//двумерный массив размера (m+1)*(n+1) заполняем нулями(dp[i][j] будет хранить max сумму j из i
+
+    for (int i = 1; i <= m; ++i) {//цикл по всем элементам подмассива
+        for (int j = 1; j <= n; ++j) {//цикл по по всем количествам кусков
+            dp[i][j] = dp[i-1][j];//не взяли текущий кусок, получаем предыдущее значение
+            //проверяем, можно ли взять текущий кусок
+            if (i > 1) {
+                dp[i][j] = max(dp[i][j], dp[i-2][j-1] + slices[start + i - 1]);//максимальная сумма, полученная при выборе j-1 кусочков из первых i-2 элементов (пропускаем текущий и предыдущий кусочек)
+            } else {
+                dp[i][j] = max(dp[i][j], slices[start + i - 1]);// не пропускаем соседний кусок
+            }
+        }
+    }
+    return dp[m][n];
+}
+
+int maxSizeSlices(vector<int>& slices) {
+    int n = slices.size() / 3;//количество кусков, которые возможно выбрать
+
+    int case1 = maxSum(slices, 1, slices.size() - 1, n);//исключаем 1 кусок
+    int case2 = maxSum(slices, 0, slices.size() - 2, n);//исключаем последний кусок
+
+    return max(case1, case2);
+}
+
+int main() {
+    vector<int> slices = {8, 9, 8, 6, 1, 1};
+    cout << "Maximum sum: " << maxSizeSlices(slices) << endl;
+    return 0;
+}

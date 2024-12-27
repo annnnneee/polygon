@@ -1,0 +1,697 @@
+#include <iostream> 
+#include <vector> 
+#include <list> 
+#include <map> 
+#include <fstream> 
+#include <sstream> 
+#include <cmath> 
+#include <cassert>
+
+using namespace std;
+
+using Node = pair<double, double>; // Pair типа Node (долгота и широта), занимает 16 байт
+
+// Структура графа
+struct Graph {
+    // Граф представлен списком смежности (map использует O(log V) для поиска и добавления узлов)
+    map<Node, list<pair<Node, double>>> nodes_list; // Память: O(V + E), где V — количество вершин, E — количество рёбер.
+
+    // Добавление рёбер в граф
+    void add_edge(double lon_parent, double lat_parent, double lon_child, double lat_child, double weight) {
+        // Добавляем ребро в список смежности родительской вершины
+        nodes_list[{lon_parent, lat_parent}].push_back({{lon_child, lat_child}, weight});
+        // Время: O(log V) для поиска в map, O(1) для добавления в список
+        // Память: O(1) для хранения одного ребра
+    }
+
+    // Нахождение ближайшей вершины (по координатам)
+    Node find_closest_node(double lon, double lat) {
+        Node closest_node; // Ближайший узел (время: O(1), память: O(1))
+        double min_distance = 10e10; // Бесконечно большое начальное расстояние (время: O(1), память: O(1))
+
+        // Перебираем все вершины графа
+        for (const auto &node : nodes_list) {
+            // Расчёт евклидова расстояния между координатами узла и целевой точкой
+            double distance = sqrt(((node.first.first - lon)* 2) + ((node.first.second - lat)* 2));
+            // Время для расчёта расстояния: O(1)
+            
+            // Обновляем ближайший узел, если найден более близкий
+            if (distance < min_distance) {
+                min_distance = distance; // Время: O(1)
+                closest_node = node.first; // Время: O(1)
+            }
+        }
+        // Время: O(V) для перебора всех узлов
+        // Память: O(1) для хранения временных переменных
+        return closest_node; // Время: O(1), Память: O(1)
+    }
+
+    // Чтение графа из файла
+    void get_file_data(const string &filename) {
+        ifstream file(filename); // Открытие файла (время: O(1), память: O(1) для файлового потока)
+        string line; // Переменная для хранения строки (время: O(1), память: O(1))
+
+        // Построчно читаем файл
+        while (getline(file, line)) { 
+            stringstream line_stream(line); // Поток для строки (время: O(1), память: O(1))
+
+            string node_inf; // Для хранения информации о вершине (время: O(1), память: O(1))
+            getline(line_stream, node_inf, ':'); // Разделение строки на информацию о вершине и рёбрах (время: O(L), где L — длина строки)
+
+            stringstream node_stream(node_inf); // Поток для координат вершины (время: O(1), память: O(1))
+            string node_coords; // Для хранения координат (время: O(1), память: O(1))
+
+            getline(node_stream, node_coords, ','); // Чтение долготы вершины (время: O(1), память: O(1))
+            double lon1 = stod(node_coords); // Долгота первой вершины (время: O(1), память: O(1))
+            getline(node_stream, node_coords); // Чтение широты вершины (время: O(1), память: O(1))
+            double lat1 = stod(node_coords); // Широта первой вершины (время: O(1), память: O(1))
+
+            string edges_inf; // Для хранения информации о рёбрах (время: O(1), память: O(1))
+            // Получаем рёбра для данной вершины
+            while (getline(line_stream, edges_inf, ';')) { // Чтение каждого ребра (время: O(E), где E — количество рёбер)
+                stringstream edge_stream(edges_inf); // Поток для рёбер (время: O(1), память: O(1))
+                string child_inf; // Для хранения информации о детях (время: O(1), память: O(1))
+
+                // Извлекаем координаты и вес для рёбер
+                getline(edge_stream, child_inf, ','); // Долгота второй вершины (время: O(1), память: O(1))
+                double lon2 = stod(child_inf); // Долгота второй вершины (время: O(1), память: O(1))
+
+                getline(edge_stream, child_inf, ','); // Широта второй вершины (время: O(1), память: O(1))
+                double lat2 = stod(child_inf); // Широта второй вершины (время: O(1), память: O(1))
+
+                getline(edge_stream, child_inf, ','); // Чтение веса рёбер (время: O(1), память: O(1))
+                double weight = stod(child_inf); // Вес рёбер (время: O(1), память: O(1))
+
+                // Добавляем рёбра в обе стороны (граф неориентированный)
+                add_edge(lon1, lat1, lon2, lat2, weight); // Время: O(log V) для map, O(1) для добавления в список
+                add_edge(lon2, lat2, lon1, lat1, weight); // Время: O(log V) для map, O(1) для добавления в список
+            }
+        }
+        file.close(); // Закрытие файла (время: O(1), память: O(1))
+        // Время: O(L + E * log V), где L — количество строк в файле, E — количество рёбер
+        // Память: O(V + E), где V — количество вершин, E — количество рёбер
+    }
+
+    // Вывод пути
+    void print_path(vector<Node> path) {
+        if (path.empty()) { // Если путь пустой
+            cout << "The path was not found" << endl; // Время: O(1), Память: O(1)
+            return;
+        }
+
+        // Выводим путь
+        cout << "Your path: "; // Время: O(1), Память: O(1)
+        for (int i = 0; i < path.size() - 1; i++) { // Перебираем вершины пути
+            cout << "(" << path[i].first << ";" << path[i].second << "), "; // Выводим координаты каждой вершины (время: O(1) для каждой итерации)
+        }
+        cout << "(" << path[path.size()-1].first << ";" << path[path.size()-1].second << ")" << endl; // Выводим последнюю вершину (время: O(1))
+        // Время: O(P), где P — длина пути (количество вершин в пути)
+        // Память: O(1), только для временных переменных
+    }
+};
+
+//====================BFS====================
+pair<double, vector<Node>> bfs(Graph &graph, Node start, Node end) {
+    map<Node, list<pair<Node, double>>> nodes_list = graph.nodes_list; 
+    // Память: O(V + E), где:
+    // - O(V) для хранения списка вершин графа.
+    // - O(E) для хранения рёбер и их весов.
+
+    queue<pair<Node, double>> queue; 
+    // Память: O(V), максимум в очереди может быть до V узлов одновременно.
+
+    map<Node, Node> parent_nodes; 
+    // Память: O(V), для каждого узла графа храним его родителя в пути.
+
+    map<Node, bool> visited; 
+    // Память: O(V), для каждого узла графа храним флаг посещённости (true/false).
+
+    map<Node, double> distance; 
+    // Память: O(V), для каждого узла графа храним расстояние от стартовой вершины.
+
+    queue.push({start, 0.0}); 
+    // Время: O(1) — вставка в очередь.
+    // Память: увеличиваем использование памяти на один элемент (одна пара {узел, расстояние}).
+
+    visited[start] = true; 
+    // Время: O(1) — обращение к map.
+    // Память: используется уже выделенное место в map visited.
+
+    parent_nodes[start] = start; 
+    // Время: O(1) — обращение к map.
+    // Память: используется уже выделенное место в map parent_nodes.
+
+    distance[start] = 0.0; 
+    // Время: O(1) — обращение к map.
+    // Память: используется уже выделенное место в map distance.
+
+    while (!queue.empty()) { 
+        // Время: O(V + E) — цикл будет выполняться для всех вершин (V) и рёбер (E), см. ниже.
+
+        Node currNode = queue.front().first; 
+        // Время: O(1) — доступ к первому элементу очереди.
+        // Память: не выделяется новая память.
+
+        double currDist = queue.front().second; 
+        // Время: O(1) — доступ ко второму элементу пары в очереди.
+        // Память: не выделяется новая память.
+
+        queue.pop(); 
+        // Время: O(1) — удаление из очереди.
+        // Память: освобождается память, выделенная для одного элемента очереди.
+
+        if (currNode == end) { 
+            // Время: O(1) — проверка на равенство.
+            // Память: не выделяется новая память.
+
+            vector<Node> route; 
+            // Память: O(V), в худшем случае путь может содержать все узлы.
+
+            for (Node i = end; i != start; i = parent_nodes[i]) { 
+                // Время: O(V) — цикл проходит по всем вершинам на пути от start до end.
+                // Память: добавляем узлы в vector route (O(V)).
+
+                route.push_back(i); 
+                // Время: O(1) — добавление элемента в конец вектора.
+                // Память: увеличивается объём вектора (на один узел).
+
+            }
+
+            route.push_back(start); 
+            // Время: O(1) — добавление start в конец вектора.
+            // Память: увеличивается объём вектора на одну вершину.
+
+            reverse(route.begin(), route.end()); 
+            // Время: O(V) — разворот вектора с V элементами.
+            // Память: используется временная память для обмена местами элементов.
+
+            return {currDist, route}; 
+            // Время: O(1) — возврат результата.
+            // Память: route возвращается, но новая память не выделяется.
+        }
+
+        for (const auto& child_data : nodes_list[currNode]) { 
+            // Время: O(E) — цикл проходит по всем рёбрам текущей вершины (в сумме по всем вершинам графа будет E рёбер).
+            // Память: не выделяется новая память (итерация по уже существующему списку).
+
+            Node child = child_data.first; 
+            // Время: O(1) — доступ к элементу pair в списке смежности.
+            // Память: не выделяется новая память.
+
+            double weight = child_data.second; 
+            // Время: O(1) — доступ ко второму элементу pair в списке смежности.
+            // Память: не выделяется новая память.
+
+            if (!visited[child]) { 
+                // Время: O(1) — проверка значения в map.
+                // Память: не выделяется новая память.
+
+                visited[child] = true; 
+                // Время: O(1) — обновление значения в map.
+                // Память: используется уже выделенное место в map visited.
+
+                distance[child] = weight + currDist; 
+                // Время: O(1) — обновление значения в map.
+                // Память: используется уже выделенное место в map distance.
+
+                parent_nodes[child] = currNode; 
+                // Время: O(1) — обновление значения в map.
+                // Память: используется уже выделенное место в map parent_nodes.
+
+                queue.push({child, weight + currDist}); 
+                // Время: O(1) — вставка нового узла в очередь.
+                // Память: увеличивается использование памяти на один элемент (пара {узел, расстояние}).
+            }
+        }
+    }
+
+    return {numeric_limits<double>::infinity(), {}}; 
+    // Время: O(1) — возврат пустого пути.
+    // Память: не выделяется новая память.
+}
+/* Итог:
+   Память: O(V+E)
+   Время: O(V+E)
+*/
+
+//====================DFS====================
+pair<double, vector<Node>> dfs(Graph &graph, Node start, Node end) {
+    map<Node, list<pair<Node, double>>> nodes_list = graph.nodes_list; 
+    // Память: O(V + E), где:
+    // - O(V) для хранения списка вершин.
+    // - O(E) для хранения рёбер графа.
+
+    stack<pair<Node, double>> stack; 
+    // Память: O(V), максимум в стеке может быть до V узлов одновременно.
+
+    map<Node, bool> visited; 
+    // Память: O(V), храним информацию о посещённости каждого узла (true/false).
+
+    map<Node, Node> parent_nodes; 
+    // Память: O(V), для каждого узла графа храним его родителя.
+
+    map<Node, double> distance; 
+    // Память: O(V), для каждого узла храним расстояние от стартовой вершины.
+
+    stack.push({start, 0.0}); 
+    // Время: O(1) — добавление в стек.
+    // Память: увеличивается использование памяти на одну пару {узел, расстояние}.
+
+    visited[start] = true; 
+    // Время: O(1) — обновление значения в map.
+    // Память: используется уже выделенное место в map visited.
+
+    parent_nodes[start] = start; 
+    // Время: O(1) — обновление значения в map.
+    // Память: используется уже выделенное место в map parent_nodes.
+
+    distance[start] = 0.0; 
+    // Время: O(1) — обновление значения в map.
+    // Память: используется уже выделенное место в map distance.
+
+    while (!stack.empty()) { 
+        // Время: O(V + E) — итерации проходят для всех вершин (V) и всех рёбер (E), см. ниже.
+
+        Node currNode = stack.top().first; 
+        // Время: O(1) — доступ к последнему элементу стека.
+        // Память: не выделяется новая память.
+
+        double currDist = stack.top().second; 
+        // Время: O(1) — доступ ко второму элементу пары.
+        // Память: не выделяется новая память.
+
+        stack.pop(); 
+        // Время: O(1) — удаление элемента из стека.
+        // Память: освобождается память, выделенная для одной пары {узел, расстояние}.
+
+        if (currNode == end) { 
+            // Время: O(1) — проверка равенства.
+            // Память: не выделяется новая память.
+
+            vector<Node> route; 
+            // Память: O(V), в худшем случае путь может содержать все узлы.
+
+            for (Node way_node = end; way_node != start; way_node = parent_nodes[way_node]) { 
+                // Время: O(V) — цикл проходит по всем вершинам на пути от start до end.
+                // Память: добавляем узлы в вектор (O(V)).
+
+                route.push_back(way_node); 
+                // Время: O(1) — добавление элемента в конец вектора.
+                // Память: увеличивается использование памяти на один узел.
+
+            }
+
+            route.push_back(start); 
+            // Время: O(1) — добавление узла в конец вектора.
+            // Память: увеличивается использование памяти на одну вершину.
+
+            reverse(route.begin(), route.end()); 
+            // Время: O(V) — разворот вектора.
+            // Память: используется временная память для обмена местами элементов.
+
+            return {currDist, route}; 
+            // Время: O(1) — возврат результата.
+            // Память: возвращается существующий путь (vector<Node>) без выделения новой памяти.
+        }
+
+        for (const auto& child_data : nodes_list[currNode]) { 
+            // Время: O(E) — цикл проходит по всем рёбрам текущей вершины (в сумме для всех вершин будет O(E)).
+            // Память: не выделяется новая память (итерация по уже существующему списку).
+
+            Node child = child_data.first; 
+            // Время: O(1) — доступ к ключу pair.
+            // Память: не выделяется новая память.
+
+            double weight = child_data.second; 
+            // Время: O(1) — доступ к значению pair.
+            // Память: не выделяется новая память.
+
+            if (!visited[child]) { 
+                // Время: O(1) — проверка значения в map.
+                // Память: не выделяется новая память.
+
+                visited[child] = true; 
+                // Время: O(1) — обновление значения в map.
+                // Память: используется уже выделенное место в map visited.
+
+                distance[child] = weight + currDist; 
+                // Время: O(1) — обновление значения в map.
+                // Память: используется уже выделенное место в map distance.
+
+                parent_nodes[child] = currNode; 
+                // Время: O(1) — обновление значения в map.
+                // Память: используется уже выделенное место в map parent_nodes.
+
+                stack.push({child, weight + currDist}); 
+                // Время: O(1) — добавление нового элемента в стек.
+                // Память: увеличивается использование памяти на одну пару {узел, расстояние}.
+            }
+        }
+    }
+
+    return {numeric_limits<double>::infinity(), {}}; 
+    // Время: O(1) — возврат результата.
+    // Память: возвращается пустой путь (vector<Node>) без выделения новой памяти.
+}
+/* Итог:
+   Память: O(V+E)
+   Время: O(V+E)
+*/
+
+//====================DIJKSTRA====================
+pair<double, vector<Node>> dijkstra(Graph &graph, Node start, Node end) {
+    map<Node, list<pair<Node, double>>> nodes_list = graph.nodes_list;
+    // Память: O(V + E) - O(V) для вершин, O(E) для рёбер в списке смежности.
+
+    priority_queue<pair<double, Node>, vector<pair<double, Node>>, greater<>> pq;
+    // Память: O(V) - в худшем случае в очереди окажутся все вершины графа.
+
+    pq.push({0.0, start});
+    // Время: O(log V) - добавление элемента в приоритетную очередь (в зависимости от текущего числа элементов).
+    // Память: O(1) - добавляется пара {расстояние, вершина}.
+
+    map<Node, bool> used;
+    // Память: O(V) - для хранения информации о посещённости вершин.
+
+    map<Node, Node> parents;
+    // Память: O(V) - для хранения родительских узлов для каждой вершины.
+
+    parents[start] = start;
+    // Время: O(1) - вставка в map.
+    // Память: Используется уже выделенное место в parents.
+
+    map<Node, double> distance;
+    // Память: O(V) - для хранения расстояния до каждой вершины.
+
+    for (const auto& node_data : nodes_list) {
+        distance[node_data.first] = numeric_limits<double>::infinity();
+        // Время: O(V) - цикл проходит по всем вершинам графа (инициализация).
+        // Память: Используется уже выделенное место в distance.
+    }
+
+    distance[start] = 0.0;
+    // Время: O(1) - обновление значения для стартовой вершины.
+    // Память: Используется уже выделенное место в distance.
+
+    while (!pq.empty()) {
+        // Время: O(V + E * log V) - цикл выполняется, пока не будут обработаны все вершины и рёбра.
+        
+        double currDist = pq.top().first;
+        Node currNode = pq.top().second;
+        pq.pop();
+        // Время: O(log V) - удаление элемента из приоритетной очереди.
+        // Память: O(1) - память под текущий узел уже выделена.
+
+        if (currNode == end) {
+            vector<Node> route;
+            // Память: O(V) - в худшем случае путь может содержать все вершины.
+
+            for (Node i = end; i != start; i = parents[i]) {
+                route.push_back(i);
+                // Время: O(V) - цикл проходит по всем вершинам на пути от start до end.
+                // Память: Потребление памяти растёт линейно от числа узлов в пути.
+            }
+
+            route.push_back(start);
+            reverse(route.begin(), route.end());
+            // Время: O(V) - разворот пути.
+            // Память: Временная память используется для перестановки элементов.
+            
+            return {distance[currNode], route};
+            // Время: O(1) - возврат результата.
+            // Память: Возвращается существующий путь без выделения новой памяти.
+        }
+
+        if (used[currNode]) continue;
+        // Время: O(1) - проверка значения в map.
+        // Память: Уже выделенное место в used.
+
+        used[currNode] = true;
+        // Время: O(1) - обновление значения в map.
+        // Память: Используется уже выделенное место.
+
+        for (const auto& child_data : nodes_list[currNode]) {
+            const Node child = child_data.first;
+            double weight = child_data.second;
+            // Время: O(E) - цикл проходит по всем рёбрам текущей вершины.
+            // Память: Итерация по уже существующему списку рёбер (дополнительная память не выделяется).
+
+            double newDist = currDist + weight;
+            // Время: O(1) - арифметические операции.
+            // Память: Не выделяется дополнительная память.
+
+            if (newDist < distance[child]) {
+                distance[child] = newDist;
+                parents[child] = currNode;
+                // Время: O(1) - обновление значений в map.
+                // Память: Используется уже выделенное место.
+
+                pq.push({newDist, child});
+                // Время: O(log V) - вставка в приоритетную очередь.
+                // Память: Потребление памяти увеличивается на одну пару {расстояние, вершина}.
+            }
+        }
+    }
+
+    return {numeric_limits<double>::infinity(), {}};
+    // Время: O(1) - возврат результата.
+    // Память: Возвращается пустой путь.
+}
+/* Итог:
+   Память: O(V+E)
+   Время: O((V+E)log V)
+*/
+
+
+//====================A-STAR====================
+double heuristic(Node node1, Node node2) {
+    return sqrt(pow(node1.first - node2.first, 2) + pow(node1.second - node2.second, 2));
+}
+
+pair<double, vector<Node>> astar(Graph &graph, Node start, Node end) {
+    map<Node, list<pair<Node, double>>> nodes_list = graph.nodes_list;
+    // Память: O(V + E) - O(V) для хранения всех вершин графа и O(E) для хранения рёбер (список смежности).
+
+    map<Node, double> g_score;
+    // Память: O(V) - хранение стоимости пути от стартовой вершины до каждой другой вершины.
+
+    map<Node, double> h_score;
+    // Память: O(V) - хранение эвристической оценки от текущей вершины до целевой.
+
+    for (const auto& node_data : nodes_list) {
+        g_score[node_data.first] = numeric_limits<double>::infinity();
+        h_score[node_data.first] = numeric_limits<double>::infinity();
+        // Время: O(V) - цикл проходит по всем вершинам графа.
+        // Память: Используется уже выделенное место в `g_score` и `h_score` (без новых выделений).
+    }
+
+    g_score[start] = 0.0;
+    // Время: O(1) - обновление значения в `g_score`.
+    // Память: Используется уже выделенное место.
+
+    h_score[start] = heuristic(start, end);
+    // Время: O(1) - вычисление эвристики для стартовой вершины.
+    // Память: Используется уже выделенное место.
+
+    priority_queue<pair<double, Node>, vector<pair<double, Node>>, greater<>> pq;
+    // Память: O(V): - худшем случае все вершины окажутся в очереди.
+
+    pq.push({h_score[start], start});
+    // Время: O(log V) - вставка в приоритетную очередь.
+    // Память: Дополнительная память для пары {h_score, узел}.
+
+    map<Node, Node> parent_nodes;
+    // Память: O(V) - хранение родителей каждой вершины для восстановления пути.
+
+    parent_nodes[start] = start;
+    // Время: O(1) - обновление значения в `parent_nodes`.
+    // Память: Используется уже выделенное место.
+
+    while (!pq.empty()) {
+        // Время: O(V + E * log V) - цикл выполняется, пока не будут обработаны все вершины и рёбра.
+
+        double curr_h_score = pq.top().first;
+        Node currNode = pq.top().second;
+        pq.pop();
+        // Время: O(log V) - удаление элемента из приоритетной очереди.
+        // Память: O(1) - память для временных переменных.
+
+        if (currNode == end) {
+            vector<Node> route;
+            // Память: O(V) - для хранения пути в виде списка узлов.
+
+            for (Node i = end; i != start; i = parent_nodes[i]) {
+                route.push_back(i);
+                // Время: O(V) - в худшем случае посещаются все вершины, чтобы восстановить путь.
+                // Память: Потребление памяти растёт линейно с числом узлов в пути.
+            }
+
+            route.push_back(start);
+            reverse(route.begin(), route.end());
+            // Время: O(V): разворот пути.
+            // Память: Временная память используется для перестановки элементов.
+
+            return {g_score[currNode], route};
+            // Время: O(1) - возврат результата.
+            // Память: Возвращается существующий путь без выделения новой памяти.
+        }
+
+        for (const auto& child_data : nodes_list[currNode]) {
+            const Node child = child_data.first;
+            double weight = child_data.second;
+            // Время: O(E) - цикл проходит по всем рёбрам текущей вершины.
+            // Память: Не выделяется дополнительная память, так как рёбра уже хранятся в `nodes_list`.
+
+            double pre_g_score = g_score[currNode] + weight;
+            // Время: O(1) - арифметические операции.
+            // Память: O(1) - временная память для хранения результата.
+
+            if (pre_g_score < g_score[child]) {
+                parent_nodes[child] = currNode;
+                g_score[child] = pre_g_score;
+                h_score[child] = pre_g_score + heuristic(child, end);
+                // Время: O(1) - обновление значений в `parent_nodes`, `g_score` и `h_score`.
+                // Память: Используется уже выделенное место.
+
+                pq.push({h_score[child], child});
+                // Время: O(log V) - вставка в приоритетную очередь.
+                // Память: Потребление памяти увеличивается на одну пару {h_score, узел}.
+            }
+        }
+    }
+
+    return {numeric_limits<double>::infinity(), {}};
+    // Время: O(1) - возврат результата.
+    // Память: Возвращается пустой путь без выделения новой памяти.
+}
+/* Итог:
+   Память: O(V+E)
+   Время: O((V+E)log V)
+*/
+
+
+
+//====================TESTS====================
+void test_pathfinding_algorithms() {
+    // Создаем тестовый граф
+    Graph graph;
+
+    // Добавляем вершины и ребра
+    graph.add_edge(0, 0, 1, 0, 1.0);
+    graph.add_edge(1, 0, 2, 0, 1.0);
+    graph.add_edge(2, 0, 3, 0, 1.0);
+    graph.add_edge(0, 0, 0, 1, 1.0);
+    graph.add_edge(0, 1, 1, 1, 1.0);
+    graph.add_edge(1, 1, 2, 1, 1.0);
+    graph.add_edge(2, 1, 3, 1, 1.0);
+    graph.add_edge(3, 0, 3, 1, 1.0);
+
+    // Тестовые данные
+    vector<tuple<Node, Node, vector<Node>, double>> test_cases = {
+        {{0, 0}, {3, 0}, {{0, 0}, {1, 0}, {2, 0}, {3, 0}}, 3.0},
+        {{0, 0}, {2, 1}, {{0, 0}, {0, 1}, {1, 1}, {2, 1}}, 3.0},
+        {{1, 1}, {1, 1}, {{1, 1}}, 0.0},
+        {{3, 0}, {0, 2}, {}, numeric_limits<double>::infinity()}
+    };
+
+    // Тестируем каждый алгоритм
+    for (auto& [start, end, expected_path, expected_distance] : test_cases) {
+        cout << "\nTesting from (" << start.first << ", " << start.second << ") to ("
+             << end.first << ", " << end.second << ")" << endl;
+
+        // BFS
+        auto [bfs_distance, bfs_path] = bfs(graph, start, end);
+        cout << "BFS result: ";
+        graph.print_path(bfs_path);
+        if (bfs_path != expected_path || bfs_distance != expected_distance) {
+        cout << "BFS failed: Expected distance = " << expected_distance 
+             << ", Actual = " << bfs_distance << endl;
+        }
+
+        // DFS
+        auto [dfs_distance, dfs_path] = dfs(graph, start, end);
+        cout << "DFS result: ";
+        graph.print_path(dfs_path);
+        if (dfs_path != expected_path || dfs_distance != expected_distance) {
+            cout << "DFS failed: Expected distance = " << expected_distance 
+                 << ", Actual = " << dfs_distance << endl;
+        }
+
+        // Dijkstra
+        auto [dijkstra_distance, dijkstra_path] = dijkstra(graph, start, end);
+        cout << "Dijkstra result: ";
+        graph.print_path(dijkstra_path);
+        if (dijkstra_path != expected_path || dijkstra_distance != expected_distance) {
+            cout << "Dijkstra failed: Expected distance = " << expected_distance 
+                 << ", Actual = " << dijkstra_distance << endl;
+        }
+
+        // A*
+        auto [astar_distance, astar_path] = astar(graph, start, end);
+        cout << "A* result: ";
+        graph.print_path(astar_path);
+        if (astar_path != expected_path || astar_distance != expected_distance) {
+            cout << "A* failed: Expected distance = " << expected_distance 
+                 << ", Actual = " << astar_distance << endl;
+        }
+
+        cout << "Test completed for this case.\n";
+    }
+}
+
+
+
+//====================MAIN====================
+int main() {
+    Graph graph;
+    graph.get_file_data("/Users/annabondarenko/Desktop/spb_graph.txt");
+    Node home = graph.find_closest_node(30.215868, 59.951898);
+    Node itmo = graph.find_closest_node(30.309514, 59.956184);
+
+    test_pathfinding_algorithms();
+
+    cout << "===================================" << endl;
+    clock_t start_time1 = clock();
+    auto res1 = bfs(graph, home, itmo);
+    clock_t end_time1 = clock();
+    double duration1 = (double)(end_time1 - start_time1) / CLOCKS_PER_SEC;
+    cout << "BFS result: " << res1.first << endl;
+    cout << "Path length (edges in path): " << res1.second.size() - 1 << endl;
+    cout << "Time: " << duration1 << " seconds" << endl;
+    graph.print_path(res1.second);
+    cout << "===================================" << endl;
+
+    clock_t start_time4 = clock();
+    auto res4 = dfs(graph, home, itmo);
+    clock_t end_time4 = clock();
+    double duration4 = (double)(end_time4 - start_time4) / CLOCKS_PER_SEC;
+    cout << "DFS result: " << res4.first << endl;
+    cout << "Path length (edges in path): " << res4.second.size() - 1 << endl;
+    cout << "Time: " << duration4 << " seconds" << endl;
+    //graph.print_path(res4.second);
+    cout << "===================================" << endl;
+
+    clock_t start_time2 = clock();
+    auto res2 = dijkstra(graph, home, itmo);
+    clock_t end_time2 = clock();
+    double duration2 = (double)(end_time2 - start_time2) / CLOCKS_PER_SEC;
+    cout << "DIJKSTRA result: " << res2.first << endl;
+    cout << "Path length (edges in path): " << res2.second.size() - 1 << endl;
+    cout << "Time: " << duration2 << " seconds" << endl;
+    //graph.print_path(res2.second);
+    cout << "===================================" << endl;
+
+    clock_t start_time3 = clock();
+    auto res3 = astar(graph, home, itmo);
+    clock_t end_time3 = clock();
+    double duration3 = (double)(end_time3 - start_time3) / CLOCKS_PER_SEC;
+    cout << "A* result: " << res3.first << endl;
+    cout << "Path length (edges in path): " << res3.second.size() - 1 << endl;
+    cout << "Time: " << duration3 << " seconds" << endl;
+    //graph.print_path(res3.second);
+    cout << "===================================" << endl;
+
+    return 0;
+ } 
+
+
